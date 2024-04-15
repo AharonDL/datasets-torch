@@ -5,6 +5,7 @@ import soundfile as sf
 import dtlpy as dl
 import tempfile
 from multiprocessing.pool import ThreadPool
+import time
 
 logger = logging.getLogger(name='dataset-pytorch')
 
@@ -45,6 +46,7 @@ class DatasetPytorch(dl.BaseServiceRunner):
         ranges = 1000
 
         for i in range(ranges):
+            start = time.time()
             audio, sample_rate, transcript, speaker_id, chapter_id, utterance_id = self.dataset_pytorch[i]
             audio_filename = f"{speaker_id}_{chapter_id}_{utterance_id}.wav"
             # Length of the audio data
@@ -54,6 +56,7 @@ class DatasetPytorch(dl.BaseServiceRunner):
             audio_filename = f"{speaker_id}_{chapter_id}_{utterance_id}.wav"
             full_audio_path = os.path.join(temp_dir.name, audio_filename)
             torchaudio.save(full_audio_path, audio, sample_rate)
+            logger.info(f"Before thread {i} took {time.time() - start} seconds")
             async_results.append(
                 pool.apply_async(
                     self.upload_item_with_annotations,
@@ -82,6 +85,7 @@ class DatasetPytorch(dl.BaseServiceRunner):
         :param end_time: The duration of the audio.
         """
         # Upload audio file
+        start = time.time()
         item = dataset.items.upload(local_path=audio_path, remote_path='/')
         builder = item.annotations.builder()
         annotation_definition = dl.Subtitle(text=annotation_text, label=str(label))
@@ -90,5 +94,8 @@ class DatasetPytorch(dl.BaseServiceRunner):
                     end_time=end_time,
                     object_id='001'
                     )
+        logger.info(f"Before upload {audio_path} took {time.time() - start} seconds")
+        start = time.time()
         item.annotations.upload(builder)
+        logger.info(f"Upload annotations {audio_path} took {time.time() - start} seconds")
         return item
